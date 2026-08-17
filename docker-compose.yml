@@ -1,0 +1,124 @@
+x-hadoop-common: &hadoop-common
+  image: apache/hadoop:3.3.6
+  restart: unless-stopped
+  networks:
+    - hadoop-net
+  volumes:
+    - hadoop_conf:/opt/hadoop/etc/hadoop
+
+services:
+  # Seeds the hadoop_conf named volume with the image's default config files
+  # (Docker auto-copies them in on first mount of an empty volume), then
+  # overwrites the 4 files we care about with our own. This avoids bind-
+  # mounting individual files onto /opt/hadoop/etc/hadoop, which breaks on
+  # Docker Desktop for Windows ("not a directory" mount error) because that
+  # path isn't laid out as plain loose files in this image.
+  config-init:
+    image: apache/hadoop:3.3.6
+    user: root
+    volumes:
+      - hadoop_conf:/opt/hadoop/etc/hadoop
+      - ./config:/tmp/custom-config:ro
+    command: >
+      sh -c "cp /tmp/custom-config/*.xml /opt/hadoop/etc/hadoop/ && chown -R hadoop:hadoop /opt/hadoop/etc/hadoop"
+
+  # Fixes ownership of the HDFS data volumes before the hadoop (non-root)
+  # user touches them. apache/hadoop:3.3.6 runs as the "hadoop" user —
+  # root-owned named volumes otherwise cause "Permission denied" on format.
+  volume-init:
+    image: apache/hadoop:3.3.6
+    user: root
+    command: >
+      sh -c "chown -R hadoop:hadoop /opt/hadoop/dfs/name /opt/hadoop/dfs/data-1 /opt/hadoop/dfs/data-2"
+    volumes:
+      - namenode_data:/opt/hadoop/dfs/name
+      - datanode1_data:/opt/hadoop/dfs/data-1
+      - datanode2_data:/opt/hadoop/dfs/data-2
+
+  namenode:
+    <<: *hadoop-common
+    container_name: namenode
+    hostname: namenode
+    depends_on:
+      config-init:
+        condition: service_completed_successfully
+      volume-init:
+        condition: service_completed_successfully
+    ports:
+      - "9870:9870"  # NameNode Web UI
+      - "9000:9000"  # HDFS IPC
+    command: ["sh", "-c", "if [ ! -d /opt/hadoop/dfs/name/current ]; then hdfs namenode -format -force; fi && hdfs namenode"]
+    volumes:
+      - hadoop_conf:/opt/hadoop/etc/hadoop
+      - namenode_data:/opt/hadoop/dfs/name
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9870"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+
+  datanode1:
+    <<: *hadoop-common
+    container_name: datanode1
+    hostname: datanode1
+    command: ["hdfs", "datanode"]
+    depends_on:
+      namenode:
+        condition: service_healthy
+    volumes:
+      - hadoop_conf:/opt/hadoop/etc/hadoop
+      - datanode1_data:/opt/hadoop/dfs/data
+
+  datanode2:
+    <<: *hadoop-common
+    container_name: datanode2
+    hostname: datanode2
+    command: ["hdfs", "datanode"]
+    depends_on:
+      namenode:
+        condition: service_healthy
+    volumes:
+      - hadoop_conf:/opt/hadoop/etc/hadoop
+      - datanode2_data:/opt/hadoop/dfs/data
+
+  resourcemanager:
+    <<: *hadoop-common
+    container_name: resourcemanager
+    hostname: resourcemanager
+    ports:
+      - "8088:8088"  # YARN ResourceManager Web UI
+    command: ["yarn", "resourcemanager"]
+    depends_on:
+      namenode:
+        condition: service_healthy
+    healthcheck:
+      # RM binds to hostname/IP (resourcemanager:8088), not loopback in this setup.
+      test: ["CMD", "curl", "-f", "http://resourcemanager:8088"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+
+  nodemanager:
+    <<: *hadoop-common
+    container_name: nodemanager
+    hostname: nodemanager
+    ports:
+      - "8042:8042"  # NodeManager Web UI
+    command: ["yarn", "nodemanager"]
+    depends_on:
+      namenode:
+        condition: service_healthy
+      resourcemanager:
+        condition: service_healthy
+
+volumes:
+  hadoop_conf:
+  namenode_data:
+  datanode1_data:
+  datanode2_data:
+
+networks:
+  hadoop-net:
+    driver: bridge
