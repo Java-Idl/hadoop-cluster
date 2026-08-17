@@ -1,0 +1,42 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editors/IDEs
+.vscode/
+.idea/
+*.iml
+
+# Logs and temp
+*.log
+*.tmp
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Docker overrides and local env files
+docker-compose.override.yml
+*.env
+
+# HDFS data directories (local mounts)
+namenode_data/
+datanode1_data/
+datanode2_data/
+
+# Runtime
+*.pid
+*.sock
+
+# Misc
+.cache/
