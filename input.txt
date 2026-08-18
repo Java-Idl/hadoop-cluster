@@ -1,0 +1,10 @@
+Hadoop is a framework for distributed data processing.
+Hadoop uses HDFS for distributed storage.
+Hadoop uses YARN for resource management.
+MapReduce processes large amounts of data.
+Python can be used to write Hadoop streaming mapper and reducer programs.
+The mapper processes input data and produces key value pairs.
+The reducer receives grouped keys and calculates the final result.
+Distributed computing allows large datasets to be processed efficiently.
+HDFS stores data across multiple data nodes.
+Hadoop is widely used for big data processing.
