@@ -1,5 +1,5 @@
 x-hadoop-common: &hadoop-common
-  image: apache/hadoop:3.3.6
+  build: .
   restart: unless-stopped
   networks:
     - hadoop-net
@@ -29,11 +29,11 @@ services:
     image: apache/hadoop:3.3.6
     user: root
     command: >
-      sh -c "chown -R hadoop:hadoop /opt/hadoop/dfs/name /opt/hadoop/dfs/data-1 /opt/hadoop/dfs/data-2"
+      sh -c "chown -R hadoop:hadoop /opt/hadoop/dfs/name /opt/hadoop/dfs/data-node1 /opt/hadoop/dfs/data-node2"
     volumes:
       - namenode_data:/opt/hadoop/dfs/name
-      - datanode1_data:/opt/hadoop/dfs/data-1
-      - datanode2_data:/opt/hadoop/dfs/data-2
+      - datanode1_data:/opt/hadoop/dfs/data-node1
+      - datanode2_data:/opt/hadoop/dfs/data-node2
 
   namenode:
     <<: *hadoop-common
@@ -62,6 +62,8 @@ services:
     <<: *hadoop-common
     container_name: datanode1
     hostname: datanode1
+    ports:
+      - "9864:9864"
     command: ["hdfs", "datanode"]
     depends_on:
       namenode:
@@ -74,6 +76,8 @@ services:
     <<: *hadoop-common
     container_name: datanode2
     hostname: datanode2
+    ports:
+      - "9865:9865"
     command: ["hdfs", "datanode"]
     depends_on:
       namenode:
@@ -81,6 +85,19 @@ services:
     volumes:
       - hadoop_conf:/opt/hadoop/etc/hadoop
       - datanode2_data:/opt/hadoop/dfs/data
+
+  historyserver:
+    <<: *hadoop-common
+    container_name: historyserver
+    hostname: historyserver
+    ports:
+      - "19888:19888"  # JobHistory Web UI
+    command: ["mapred", "historyserver"]
+    depends_on:
+      namenode:
+        condition: service_healthy
+      resourcemanager:
+        condition: service_healthy
 
   resourcemanager:
     <<: *hadoop-common
